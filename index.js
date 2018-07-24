@@ -1,4 +1,4 @@
-const arrayMethods = 'push pop shift unshift splice indexOf find findIndex toString'.split(
+const arrayMethods = 'push pop shift unshift splice indexOf find findIndex toString forEach some every reduce'.split(
   /\s+/
 );
 

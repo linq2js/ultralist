@@ -7,7 +7,7 @@ exports.default = create;
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
-var arrayMethods = 'push pop shift unshift splice indexOf find findIndex toString'.split(/\s+/);
+var arrayMethods = 'push pop shift unshift splice indexOf find findIndex toString forEach some every reduce'.split(/\s+/);
 
 function create() {
   for (var _len = arguments.length, items = Array(_len), _key = 0; _key < _len; _key++) {

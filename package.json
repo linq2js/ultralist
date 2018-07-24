@@ -1,6 +1,6 @@
 {
   "name": "ultralist",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Multi purposes list: immutable, filterable, sortable",
   "main": "./dist/index.js",
   "scripts": {
