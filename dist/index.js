@@ -22,6 +22,7 @@ function create() {
       delete subLists[listName].processedItems;
       delete subLists[listName].orderedItems;
     }
+    list.length = items.length;
   }
 
   function modifyItems(callback) {
@@ -52,6 +53,7 @@ function create() {
     };
     return prototype;
   }, {}), {
+    length: items.length,
     chainable: function chainable() {
       var value = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
 

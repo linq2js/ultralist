@@ -11,6 +11,7 @@ export default function create(...items) {
       delete subLists[listName].processedItems;
       delete subLists[listName].orderedItems;
     }
+    list.length = items.length;
   }
 
   function modifyItems(callback) {
@@ -40,6 +41,7 @@ export default function create(...items) {
       return prototype;
     }, {}),
     {
+      length: items.length,
       chainable(value = true) {
         if (list.__chainable === value) return list;
         const newList = create(...items);

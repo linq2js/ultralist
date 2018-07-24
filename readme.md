@@ -30,6 +30,13 @@ console.log("active", todos.get("active"));
 
 console.log("completed", todos.get("completed"));
 
+console.log("length", todos.length);
+
+// update item 0
+todos.item(0, { name: 'task 0', done: false });
+
+console.log("item 0", todos.item(0));
+
 // remove completed
 todos.remove(x => x.done);
 console.log("completed", todos.get("completed"));
