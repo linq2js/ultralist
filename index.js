@@ -1,16 +1,17 @@
-const arrayMethods = 'push pop shift unshift splice indexOf find findIndex toString forEach some every reduce'.split(
+const arrayMethods = 'push pop shift unshift splice slice indexOf find findIndex toString map'.split(
   /\s+/
 );
 
 export default function create(...items) {
   let subLists = {};
   let list;
+  let subscribers = [];
 
   function clearListCache() {
-    for (let listName in subLists) {
+    Object.keys(subLists).forEach(listName => {
       delete subLists[listName].processedItems;
       delete subLists[listName].orderedItems;
-    }
+    });
     list.length = items.length;
   }
 
@@ -24,6 +25,7 @@ export default function create(...items) {
     }
     clearListCache();
     callback(items);
+    subscribers.forEach(subscriber => subscriber(items));
     return list;
   }
 
@@ -42,25 +44,57 @@ export default function create(...items) {
     }, {}),
     {
       length: items.length,
+      /**
+       * subscribe changed event
+       */
+      subscribe(subscriber) {
+        subscribers.push(subscriber);
+        return list.__chainable
+          ? list
+          : () => (subscribers = subscribers.filter(x => x !== subscriber));
+      },
+      /**
+       * make the list is chainable
+       */
       chainable(value = true) {
         if (list.__chainable === value) return list;
         const newList = create(...items);
         newList.__chainable = value;
+        newList.__immutable = list.__immutable;
         return newList;
       },
+      /**
+       * make the list is immutable
+       */
       immuatable(value = true) {
         if (list.__immutable === value) return list;
         const newList = create(...items);
         newList.__immutable = value;
+        newList.__chainable = list.__chainable;
         return newList;
       },
-      slice(...args) {
+      /**
+       * clone list
+       */
+      clone(...args) {
         return create(...items.slice(...args));
       },
+      /**
+       * get original items
+       */
+      items() {
+        return items;
+      },
+      /**
+       * get/set item by its index
+       */
       item(index, value) {
         if (arguments.length === 1) return items[index];
         return modifyItems(items => (items[index] = value));
       },
+      /**
+       * remove items which is satisfied predicate
+       */
       remove(predicate, count = 0) {
         let removedItems = 0;
         const newItems = items.filter(item => {
@@ -82,6 +116,9 @@ export default function create(...items) {
 
         return list;
       },
+      /**
+       * define sub list with specified options: { filter, order }
+       */
       define(listName, { filter, order } = {}) {
         if (order && !(order instanceof Array)) {
           order = [order];
@@ -89,6 +126,11 @@ export default function create(...items) {
         subLists[listName] = { filter, order };
         return list;
       },
+      /**
+       * get sub list
+       * @listName string name defined sub list
+       * @includeMeta boolean returns array that contains item and its metadata { order: number, item: object, index: number } if true unless returns filtered and sorted items
+       */
       get(listName = 'default', includeMeta = false) {
         let subList = subLists[listName];
         if (!subList) {

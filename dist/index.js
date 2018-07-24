@@ -3,38 +3,41 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.default = create;
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
-var arrayMethods = 'push pop shift unshift splice indexOf find findIndex toString forEach some every reduce'.split(/\s+/);
+var arrayMethods = 'push pop shift unshift splice slice indexOf find findIndex toString map'.split(/\s+/);
 
 function create() {
-  for (var _len = arguments.length, items = Array(_len), _key = 0; _key < _len; _key++) {
-    items[_key] = arguments[_key];
+  for (var _len = arguments.length, _items2 = Array(_len), _key = 0; _key < _len; _key++) {
+    _items2[_key] = arguments[_key];
   }
 
   var subLists = {};
   var list = void 0;
+  var subscribers = [];
 
   function clearListCache() {
-    for (var listName in subLists) {
+    Object.keys(subLists).forEach(function (listName) {
       delete subLists[listName].processedItems;
       delete subLists[listName].orderedItems;
-    }
-    list.length = items.length;
+    });
+    list.length = _items2.length;
   }
 
   function modifyItems(callback) {
     if (list.__immutable) {
-      var newItems = items.slice();
+      var newItems = _items2.slice();
       callback(newItems);
       var newList = create.apply(undefined, _toConsumableArray(callback(newItems)));
       newList.__chainable = list.__chainable;
       return newList;
     }
     clearListCache();
-    callback(items);
+    callback(_items2);
+    subscribers.forEach(function (subscriber) {
+      return subscriber(_items2);
+    });
     return list;
   }
 
@@ -53,39 +56,79 @@ function create() {
     };
     return prototype;
   }, {}), {
-    length: items.length,
+    length: _items2.length,
+    /**
+     * subscribe changed event
+     */
+    subscribe: function subscribe(subscriber) {
+      subscribers.push(subscriber);
+      return list.__chainable ? list : function () {
+        return subscribers = subscribers.filter(function (x) {
+          return x !== subscriber;
+        });
+      };
+    },
+
+    /**
+     * make the list is chainable
+     */
     chainable: function chainable() {
       var value = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
 
       if (list.__chainable === value) return list;
-      var newList = create.apply(undefined, _toConsumableArray(items));
+      var newList = create.apply(undefined, _toConsumableArray(_items2));
       newList.__chainable = value;
+      newList.__immutable = list.__immutable;
       return newList;
     },
+
+    /**
+     * make the list is immutable
+     */
     immuatable: function immuatable() {
       var value = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
 
       if (list.__immutable === value) return list;
-      var newList = create.apply(undefined, _toConsumableArray(items));
+      var newList = create.apply(undefined, _toConsumableArray(_items2));
       newList.__immutable = value;
+      newList.__chainable = list.__chainable;
       return newList;
     },
-    slice: function slice() {
+
+    /**
+     * clone list
+     */
+    clone: function clone() {
       var _items;
 
-      return create.apply(undefined, _toConsumableArray((_items = items).slice.apply(_items, arguments)));
+      return create.apply(undefined, _toConsumableArray((_items = _items2).slice.apply(_items, arguments)));
     },
+
+    /**
+     * get original items
+     */
+    items: function items() {
+      return _items2;
+    },
+
+    /**
+     * get/set item by its index
+     */
     item: function item(index, value) {
-      if (arguments.length === 1) return items[index];
+      if (arguments.length === 1) return _items2[index];
       return modifyItems(function (items) {
         return items[index] = value;
       });
     },
+
+    /**
+     * remove items which is satisfied predicate
+     */
     remove: function remove(predicate) {
       var count = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
 
       var removedItems = 0;
-      var newItems = items.filter(function (item) {
+      var newItems = _items2.filter(function (item) {
         if (count && removedItems >= count) return true;
         if (predicate(item)) {
           removedItems++;
@@ -98,12 +141,16 @@ function create() {
           return create.apply(undefined, _toConsumableArray(newItems));
         }
 
-        items = newItems;
+        _items2 = newItems;
         clearListCache();
       }
 
       return list;
     },
+
+    /**
+     * define sub list with specified options: { filter, order }
+     */
     define: function define(listName) {
       var _ref = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
           filter = _ref.filter,
@@ -115,6 +162,12 @@ function create() {
       subLists[listName] = { filter: filter, order: order };
       return list;
     },
+
+    /**
+     * get sub list
+     * @listName string name defined sub list
+     * @includeMeta boolean returns array that contains item and its metadata { order: number, item: object, index: number } if true unless returns filtered and sorted items
+     */
     get: function get() {
       var listName = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'default';
       var includeMeta = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
@@ -126,7 +179,7 @@ function create() {
       }
 
       if (!subList.processedItems) {
-        var indexedItems = items.map(function (item, index) {
+        var indexedItems = _items2.map(function (item, index) {
           return { index: index, item: item };
         });
         var filteredItems = subList.filter ? indexedItems.filter(function (x) {
@@ -164,4 +217,5 @@ function create() {
     }
   });
 }
+exports.default = create;
 //# sourceMappingURL=index.js.map
