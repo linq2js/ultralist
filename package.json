@@ -1,0 +1,34 @@
+{
+  "name": "ultralist",
+  "version": "1.0.1",
+  "description": "Multi purposes list: immutable, filterable, sortable",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/linq2js/ultralist.git"
+  },
+  "keywords": [
+    "functional",
+    "list",
+    "immuatable",
+    "chainable",
+    "sequence",
+    "sortable",
+    "filterable"
+  ],
+  "author": "linq2js",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/linq2js/ultralist/issues"
+  },
+  "homepage": "https://github.com/linq2js/ultralist#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-env": "^1.7.0"
+  }
+}
