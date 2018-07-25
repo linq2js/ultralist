@@ -103,6 +103,48 @@ class App extends React.Component {
     const removeItem = item => {
       todos.remove(x => x === item, 1);
     };
+    const renderTodos = () =>
+      !todos.length ? (
+        <div className="text-center">Nothing to do</div>
+      ) : (
+        <ul className="list-group">
+          {todos.get(mainListName).map(item => (
+            <li
+              className="list-group-item"
+              key={item.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between'
+              }}
+            >
+              <span
+                onClick={e => toggleItem(item)}
+                style={{
+                  color: item.done ? 'silver' : 'black'
+                }}
+              >
+                [{item.id}] {item.name}
+              </span>
+              <span>
+                <a
+                  onClick={e => editItem(item)}
+                  style={{ margin: '0 5px' }}
+                  href="javascript:;"
+                >
+                  Edit
+                </a>
+                <a
+                  onClick={e => removeItem(item)}
+                  style={{ margin: '0 5px' }}
+                  href="javascript:;"
+                >
+                  Remove
+                </a>
+              </span>
+            </li>
+          ))}
+        </ul>
+      );
 
     return (
       <form onSubmit={handleSubmit} className="container">
@@ -113,6 +155,7 @@ class App extends React.Component {
             type="text"
             value={name}
             onChange={handleChange}
+            placeholder="Enter todo"
           />
         </div>
         <div className="form-group">
@@ -123,45 +166,7 @@ class App extends React.Component {
               </a>
             </div>
           )}
-          {!edittingItem && (
-            <ul className="list-group">
-              {todos.get(mainListName).map(item => (
-                <li
-                  className="list-group-item"
-                  key={item.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between'
-                  }}
-                >
-                  <span
-                    onClick={e => toggleItem(item)}
-                    style={{
-                      color: item.done ? 'silver' : 'black'
-                    }}
-                  >
-                    {item.name}
-                  </span>
-                  <span>
-                    <a
-                      onClick={e => editItem(item)}
-                      style={{ margin: '0 5px' }}
-                      href="javascript:;"
-                    >
-                      Edit
-                    </a>
-                    <a
-                      onClick={e => removeItem(item)}
-                      style={{ margin: '0 5px' }}
-                      href="javascript:;"
-                    >
-                      Remove
-                    </a>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {!edittingItem && renderTodos()}
         </div>
         {!edittingItem && (
           <div className="form-group">
@@ -173,19 +178,25 @@ class App extends React.Component {
             >
               <span>
                 <span
-                  className="badge badge-info"
+                  className={`btn btn-sm btn-${
+                    filter === 'all' ? 'primary' : 'default'
+                  }`}
                   onClick={e => handleFilter('all')}
                 >
                   All ({todos.get('all').length})
                 </span>{' '}
                 <span
-                  className="badge badge-info"
+                  className={`btn btn-sm btn-${
+                    filter === 'active' ? 'primary' : 'default'
+                  }`}
                   onClick={e => handleFilter('active')}
                 >
                   Active ({todos.get('active').length})
                 </span>{' '}
                 <span
-                  className="badge badge-info"
+                  className={`btn btn-sm btn-${
+                    filter === 'completed' ? 'primary' : 'default'
+                  }`}
                   onClick={e => handleFilter('completed')}
                 >
                   Completed ({todos.get('completed').length})
@@ -194,13 +205,21 @@ class App extends React.Component {
               <span>
                 <span>Sort by </span>
                 <span
-                  className="badge badge-info"
+                  className={`btn btn-sm btn-${
+                    order === 'byNameAsc' || order === 'byNameDesc'
+                      ? 'primary'
+                      : 'default'
+                  }`}
                   onClick={e => handleSort('byName')}
                 >
                   Name
                 </span>{' '}
                 <span
-                  className="badge badge-info"
+                  className={`btn btn-sm btn-${
+                    order === 'byIdAsc' || order === 'byIdDesc'
+                      ? 'primary'
+                      : 'default'
+                  }`}
                   onClick={e => handleSort('byId')}
                 >
                   Id
