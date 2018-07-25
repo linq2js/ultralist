@@ -32,6 +32,7 @@ todos.define('filter:completed', x => x.done);
 todos.define('all', { filter: 'all' });
 todos.define('active', { filter: 'active' });
 todos.define('completed', { filter: 'completed' });
+todos.define('activeTodoNames', { filter: 'active', map: x => x.name });
 
 class App extends React.Component {
   constructor() {
@@ -134,6 +135,13 @@ class App extends React.Component {
                   Edit
                 </a>
                 <a
+                  onClick={e => toggleItem(item)}
+                  style={{ margin: '0 5px' }}
+                  href="javascript:;"
+                >
+                  Toggle
+                </a>
+                <a
                   onClick={e => removeItem(item)}
                   style={{ margin: '0 5px' }}
                   href="javascript:;"
@@ -157,6 +165,10 @@ class App extends React.Component {
             onChange={handleChange}
             placeholder="Enter todo"
           />
+        </div>
+        <div className="form-group">
+          You have to finish:{' '}
+          <span>{todos.get('activeTodoNames').join(', ')}</span>
         </div>
         <div className="form-group">
           {edittingItem && (

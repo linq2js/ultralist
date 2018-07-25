@@ -1,6 +1,7 @@
 const arrayMethods = 'push pop shift unshift splice slice indexOf find findIndex toString map'.split(
   /\s+/
 );
+const cloneMethod = Symbol('clone');
 
 export default function create(...items) {
   let subLists = {};
@@ -8,6 +9,7 @@ export default function create(...items) {
   let subscribers = [];
   const filters = {};
   const orders = {};
+  const mappers = {};
 
   function clearListCache() {
     Object.keys(subLists).forEach(listName => {
@@ -25,9 +27,7 @@ export default function create(...items) {
     if (list.__immutable) {
       const newItems = items.slice();
       callback(newItems);
-      const newList = create(...callback(newItems));
-      newList.__chainable = list.__chainable;
-      return newList;
+      return createCopy(newItems);
     }
     clearListCache();
     callback(items);
@@ -70,6 +70,23 @@ export default function create(...items) {
     });
   }
 
+  function createCopy(newItems, meta = {}) {
+    return create(...newItems)[cloneMethod](
+      Object.assign(
+        {
+          subscribers,
+          filters,
+          mappers,
+          orders,
+          subLists,
+          __chainable: list.__chainable,
+          __immutable: list.__immutable
+        },
+        meta
+      )
+    );
+  }
+
   return (list = Object.assign(
     arrayMethods.reduce((prototype, method) => {
       prototype[method] = function(...args) {
@@ -85,6 +102,24 @@ export default function create(...items) {
     }, {}),
     {
       length: items.length,
+      [cloneMethod](meta) {
+        subscribers.push(...meta.subscribers);
+        Object.assign(filters, meta.filters);
+        Object.assign(orders, meta.orders);
+        Object.assign(mappers, meta.mappers);
+        Object.keys(meta.subLists).forEach(subListName => {
+          subLists[subListName] = Object.assign(
+            {
+              processedItems: undefined,
+              orderedItems: undefined
+            },
+            meta.subLists[subListName]
+          );
+        });
+        list.__chainable = meta.__chainable;
+        list.__immutable = meta.__immutable;
+        return list;
+      },
       /**
        * update all items which is satisfied predicate
        */
@@ -100,7 +135,7 @@ export default function create(...items) {
         });
         if (updatedItems) {
           if (list.__immutable) {
-            return create(...newItems);
+            return createCopy(newItems);
           }
 
           items = newItems;
@@ -124,26 +159,27 @@ export default function create(...items) {
        */
       chainable(value = true) {
         if (list.__chainable === value) return list;
-        const newList = create(...items);
-        newList.__chainable = value;
-        newList.__immutable = list.__immutable;
-        return newList;
+        return createCopy(items, {
+          __chainable: value
+        });
       },
       /**
        * make the list is immutable
        */
       immuatable(value = true) {
         if (list.__immutable === value) return list;
-        const newList = create(...items);
-        newList.__immutable = value;
-        newList.__chainable = list.__chainable;
-        return newList;
+        return createCopy(items, { __immutable: value });
       },
       /**
        * clone list
        */
-      clone(...args) {
-        return create(...items.slice(...args));
+      clone(includeSubscribers) {
+        if (includeSubscribers) {
+          return createCopy(items);
+        }
+        return createCopy(items, {
+          subscribers: []
+        });
       },
       /**
        * get original items
@@ -157,6 +193,11 @@ export default function create(...items) {
       item(index, value) {
         if (arguments.length === 1) return items[index];
         return modifyItems(items => (items[index] = value));
+      },
+      removeAll() {
+        items.splice(0, items.length);
+        dispatch();
+        return list;
       },
       /**
        * remove items which is satisfied predicate
@@ -173,7 +214,7 @@ export default function create(...items) {
         });
         if (removedItems) {
           if (list.__immutable) {
-            return create(...newItems);
+            return createCopy(newItems);
           }
 
           items = newItems;
@@ -203,15 +244,18 @@ export default function create(...items) {
             case 'filter':
               filters[name] = options;
               break;
+            case 'map':
+              mappers[name] = options;
+              break;
             default:
               throw new Error(`Unsupported option ${type}`);
           }
         } else {
-          let { filter, order } = options;
+          let { filter, order, map } = options;
           if (order && !(order instanceof Array) && typeof order !== 'string') {
             order = [order];
           }
-          subLists[listName] = { filter, order };
+          subLists[listName] = { filter, order, map };
         }
 
         return list;
@@ -253,8 +297,17 @@ export default function create(...items) {
 
           orderedItems.forEach((x, index) => (x.order = index));
 
-          subList.processedItems = filteredItems;
-          subList.orderedItems = orderedItems.map(x => x.item);
+          const mapper = subList.map
+            ? subList.map instanceof Function
+              ? subList.map
+              : mappers[subList.map]
+            : undefined;
+          subList.processedItems = mapper
+            ? filteredItems.map(mapper)
+            : filteredItems;
+          subList.orderedItems = orderedItems.map(
+            (x, ...args) => (mapper ? mapper(x.item, ...args) : x.item)
+          );
 
           if (subList.extra) {
             subList.extraData =
