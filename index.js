@@ -6,6 +6,8 @@ export default function create(...items) {
   let subLists = {};
   let list;
   let subscribers = [];
+  const filters = {};
+  const orders = {};
 
   function clearListCache() {
     Object.keys(subLists).forEach(listName => {
@@ -13,6 +15,10 @@ export default function create(...items) {
       delete subLists[listName].orderedItems;
     });
     list.length = items.length;
+  }
+
+  function dispatch() {
+    subscribers.forEach(subscriber => subscriber(items));
   }
 
   function modifyItems(callback) {
@@ -25,8 +31,43 @@ export default function create(...items) {
     }
     clearListCache();
     callback(items);
-    subscribers.forEach(subscriber => subscriber(items));
+    list.length = items.length;
+    dispatch();
     return list;
+  }
+
+  function doFilter(filter, items) {
+    if (typeof filter === 'string') {
+      filter = filters[filter];
+
+      if (!filter) {
+        throw new Error(`Filter named ${filter} cannot be found`);
+      }
+    }
+
+    return items.filter(x => filter(x.item));
+  }
+
+  function doSort(order, items) {
+    if (typeof order === 'string') {
+      order = orders[order];
+
+      if (!order) {
+        throw new Error(`Order named ${order} cannot be found`);
+      }
+    }
+
+    return items.slice().sort((a, b) => {
+      for (let index = 0; index < order.length; index++) {
+        const o = order[index];
+        const getter = o.by;
+        const aValue = getter(a.item);
+        const bValue = getter(b.item);
+        if (aValue > bValue) return o.desc ? -1 : 1;
+        if (aValue < bValue) return o.desc ? 1 : -1;
+      }
+      return 0;
+    });
   }
 
   return (list = Object.assign(
@@ -44,6 +85,31 @@ export default function create(...items) {
     }, {}),
     {
       length: items.length,
+      /**
+       * update all items which is satisfied predicate
+       */
+      update(predicate, updater, count = 0) {
+        let updatedItems = 0;
+        const newItems = items.map((item, index) => {
+          if (count && updatedItems >= count) return item;
+          if (predicate(item)) {
+            updatedItems++;
+            return updater(item, index);
+          }
+          return item;
+        });
+        if (updatedItems) {
+          if (list.__immutable) {
+            return create(...newItems);
+          }
+
+          items = newItems;
+          clearListCache();
+          dispatch();
+        }
+
+        return list;
+      },
       /**
        * subscribe changed event
        */
@@ -112,6 +178,7 @@ export default function create(...items) {
 
           items = newItems;
           clearListCache();
+          dispatch();
         }
 
         return list;
@@ -119,11 +186,34 @@ export default function create(...items) {
       /**
        * define sub list with specified options: { filter, order }
        */
-      define(listName, { filter, order } = {}) {
-        if (order && !(order instanceof Array)) {
-          order = [order];
+      define(listName, options = {}) {
+        const [type, name] = listName.split(':');
+        if (name) {
+          switch (type) {
+            case 'order':
+              if (options instanceof Function) {
+                options = { by: options };
+              }
+              if (!(options instanceof Array)) {
+                options = [options];
+              }
+
+              orders[name] = options;
+              break;
+            case 'filter':
+              filters[name] = options;
+              break;
+            default:
+              throw new Error(`Unsupported option ${type}`);
+          }
+        } else {
+          let { filter, order } = options;
+          if (order && !(order instanceof Array) && typeof order !== 'string') {
+            order = [order];
+          }
+          subLists[listName] = { filter, order };
         }
-        subLists[listName] = { filter, order };
+
         return list;
       },
       /**
@@ -136,25 +226,29 @@ export default function create(...items) {
         if (!subList) {
           // create default list with no filter and no order
           subLists[listName] = subList = {};
+          // list name can be combination of predefined filter/order names
+          if (listName.indexOf(':') !== -1) {
+            // parse feature list which is separated by spacings
+            listName.split(/\s+/).forEach(feature => {
+              // featureType:featureName
+              const [type, name] = feature.split(/:/);
+              if (!name) {
+                // is sub list name, copy all props of referenced sub list to current
+                Object.assign(subList, subLists[type]);
+              } else {
+                subList[type] = name;
+              }
+            });
+          }
         }
 
         if (!subList.processedItems) {
           const indexedItems = items.map((item, index) => ({ index, item }));
           const filteredItems = subList.filter
-            ? indexedItems.filter(x => subList.filter(x.item))
+            ? doFilter(subList.filter, indexedItems)
             : indexedItems;
           const orderedItems = subList.order
-            ? filteredItems.slice().sort((a, b) => {
-              for (let index = 0; index < subList.order.length; index++) {
-                const order = subList.order[index];
-                const getter = order.by;
-                const aValue = getter(a.item);
-                const bValue = getter(b.item);
-                if (aValue > bValue) return order.desc ? -1 : 1;
-                if (aValue < bValue) return order.desc ? 1 : -1;
-              }
-              return 0;
-            })
+            ? doSort(subList.order, filteredItems)
             : filteredItems;
 
           orderedItems.forEach((x, index) => (x.order = index));

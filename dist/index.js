@@ -4,6 +4,8 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
 var arrayMethods = 'push pop shift unshift splice slice indexOf find findIndex toString map'.split(/\s+/);
@@ -16,6 +18,8 @@ function create() {
   var subLists = {};
   var list = void 0;
   var subscribers = [];
+  var filters = {};
+  var orders = {};
 
   function clearListCache() {
     Object.keys(subLists).forEach(function (listName) {
@@ -23,6 +27,12 @@ function create() {
       delete subLists[listName].orderedItems;
     });
     list.length = _items2.length;
+  }
+
+  function dispatch() {
+    subscribers.forEach(function (subscriber) {
+      return subscriber(_items2);
+    });
   }
 
   function modifyItems(callback) {
@@ -35,10 +45,45 @@ function create() {
     }
     clearListCache();
     callback(_items2);
-    subscribers.forEach(function (subscriber) {
-      return subscriber(_items2);
-    });
+    list.length = _items2.length;
+    dispatch();
     return list;
+  }
+
+  function doFilter(filter, items) {
+    if (typeof filter === 'string') {
+      filter = filters[filter];
+
+      if (!filter) {
+        throw new Error('Filter named ' + filter + ' cannot be found');
+      }
+    }
+
+    return items.filter(function (x) {
+      return filter(x.item);
+    });
+  }
+
+  function doSort(order, items) {
+    if (typeof order === 'string') {
+      order = orders[order];
+
+      if (!order) {
+        throw new Error('Order named ' + order + ' cannot be found');
+      }
+    }
+
+    return items.slice().sort(function (a, b) {
+      for (var index = 0; index < order.length; index++) {
+        var o = order[index];
+        var getter = o.by;
+        var aValue = getter(a.item);
+        var bValue = getter(b.item);
+        if (aValue > bValue) return o.desc ? -1 : 1;
+        if (aValue < bValue) return o.desc ? 1 : -1;
+      }
+      return 0;
+    });
   }
 
   return list = Object.assign(arrayMethods.reduce(function (prototype, method) {
@@ -57,6 +102,34 @@ function create() {
     return prototype;
   }, {}), {
     length: _items2.length,
+    /**
+     * update all items which is satisfied predicate
+     */
+    update: function update(predicate, updater) {
+      var count = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
+
+      var updatedItems = 0;
+      var newItems = _items2.map(function (item, index) {
+        if (count && updatedItems >= count) return item;
+        if (predicate(item)) {
+          updatedItems++;
+          return updater(item, index);
+        }
+        return item;
+      });
+      if (updatedItems) {
+        if (list.__immutable) {
+          return create.apply(undefined, _toConsumableArray(newItems));
+        }
+
+        _items2 = newItems;
+        clearListCache();
+        dispatch();
+      }
+
+      return list;
+    },
+
     /**
      * subscribe changed event
      */
@@ -143,6 +216,7 @@ function create() {
 
         _items2 = newItems;
         clearListCache();
+        dispatch();
       }
 
       return list;
@@ -152,14 +226,42 @@ function create() {
      * define sub list with specified options: { filter, order }
      */
     define: function define(listName) {
-      var _ref = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
-          filter = _ref.filter,
-          order = _ref.order;
+      var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 
-      if (order && !(order instanceof Array)) {
-        order = [order];
+      var _listName$split = listName.split(':'),
+          _listName$split2 = _slicedToArray(_listName$split, 2),
+          type = _listName$split2[0],
+          name = _listName$split2[1];
+
+      if (name) {
+        switch (type) {
+          case 'order':
+            if (options instanceof Function) {
+              options = { by: options };
+            }
+            if (!(options instanceof Array)) {
+              options = [options];
+            }
+
+            orders[name] = options;
+            break;
+          case 'filter':
+            filters[name] = options;
+            break;
+          default:
+            throw new Error('Unsupported option ' + type);
+        }
+      } else {
+        var _options = options,
+            filter = _options.filter,
+            order = _options.order;
+
+        if (order && !(order instanceof Array) && typeof order !== 'string') {
+          order = [order];
+        }
+        subLists[listName] = { filter: filter, order: order };
       }
-      subLists[listName] = { filter: filter, order: order };
+
       return list;
     },
 
@@ -176,26 +278,32 @@ function create() {
       if (!subList) {
         // create default list with no filter and no order
         subLists[listName] = subList = {};
+        // list name can be combination of predefined filter/order names
+        if (listName.indexOf(':') !== -1) {
+          // parse feature list which is separated by spacings
+          listName.split(/\s+/).forEach(function (feature) {
+            // featureType:featureName
+            var _feature$split = feature.split(/:/),
+                _feature$split2 = _slicedToArray(_feature$split, 2),
+                type = _feature$split2[0],
+                name = _feature$split2[1];
+
+            if (!name) {
+              // is sub list name, copy all props of referenced sub list to current
+              Object.assign(subList, subLists[type]);
+            } else {
+              subList[type] = name;
+            }
+          });
+        }
       }
 
       if (!subList.processedItems) {
         var indexedItems = _items2.map(function (item, index) {
           return { index: index, item: item };
         });
-        var filteredItems = subList.filter ? indexedItems.filter(function (x) {
-          return subList.filter(x.item);
-        }) : indexedItems;
-        var orderedItems = subList.order ? filteredItems.slice().sort(function (a, b) {
-          for (var index = 0; index < subList.order.length; index++) {
-            var order = subList.order[index];
-            var getter = order.by;
-            var aValue = getter(a.item);
-            var bValue = getter(b.item);
-            if (aValue > bValue) return order.desc ? -1 : 1;
-            if (aValue < bValue) return order.desc ? 1 : -1;
-          }
-          return 0;
-        }) : filteredItems;
+        var filteredItems = subList.filter ? doFilter(subList.filter, indexedItems) : indexedItems;
+        var orderedItems = subList.order ? doSort(subList.order, filteredItems) : filteredItems;
 
         orderedItems.forEach(function (x, index) {
           return x.order = index;
